@@ -101,6 +101,21 @@ ul.rules li::before{content:"";position:absolute;left:0;top:.45rem;width:.22rem;
 .close p.site{color:#b6b6b0;font-size:.78rem;letter-spacing:.08em;margin:.9rem 0 0}
 .close p.st{color:#ff7c1a;font-style:italic;font-weight:700;letter-spacing:.09em;font-size:.9rem;margin:0 0 1.1rem}
 
+/* film overlay */
+.vwrap{position:fixed;inset:0;z-index:20;background:rgba(10,10,9,.96);display:none;
+ align-items:center;justify-content:center;padding:1rem}
+.vwrap.on{display:flex}
+.vbox{width:100%;max-width:min(100%,calc(70svh * 16 / 9));aspect-ratio:16/9;background:#000;margin-bottom:3.4rem}
+.vbox iframe{width:100%;height:100%;border:0;display:block}
+.vsound{position:absolute;left:50%;transform:translateX(-50%);bottom:max(22px,env(safe-area-inset-bottom));
+ background:#ff7c1a;color:#161615;border:0;font-family:inherit;font-weight:700;font-style:italic;
+ font-size:.95rem;letter-spacing:.06em;padding:.75rem 1.6rem;cursor:pointer;display:none}
+.vsound.on{display:block}
+.vclose{position:absolute;top:max(12px,env(safe-area-inset-top));right:14px;width:2.2rem;height:2.2rem;
+ border:0;border-radius:50%;background:rgba(255,255,255,.14);color:#fff;font-size:1.2rem;line-height:1;
+ cursor:pointer;font-family:inherit}
+.vclose:active{background:rgba(255,255,255,.26)}
+
 /* page dots */
 .dots{position:fixed;right:9px;top:50%;transform:translateY(-50%);display:flex;flex-direction:column;gap:7px;z-index:5}
 .dots i{width:6px;height:6px;border-radius:50%;background:rgba(255,255,255,.26);transition:background .25s,transform .25s}
@@ -126,6 +141,11 @@ ul.rules li::before{content:"";position:absolute;left:0;top:.45rem;width:.22rem;
 </head>
 <body>
 <div class="dots"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+<div class="vwrap" id="film" role="dialog" aria-label="Global Cricket Series film">
+ <button class="vclose" id="filmclose" aria-label="Close">&#10005;</button>
+ <div class="vbox"><div id="filmbox"></div></div>
+ <button class="vsound" id="filmsound">TAP FOR SOUND</button>
+</div>
 <main id="deck">
 
 <section class="page hero tex">
@@ -242,7 +262,7 @@ ul.rules li::before{content:"";position:absolute;left:0;top:.45rem;width:.22rem;
  <div class="inner">
   <h2>Tobago Trophy 2027</h2>
   <p class="st">PLAY · TOUR · EXPERIENCE</p>
-  <a class="btn" href="https://youtu.be/3rgyGigWWxA">WATCH THE FILM</a>
+  <a class="btn" id="playfilm" href="https://youtu.be/3rgyGigWWxA">WATCH THE FILM</a>
   <p class="site">globalcricketseries.com</p>
  </div>
 </section>
@@ -278,6 +298,7 @@ ul.rules li::before{content:"";position:absolute;left:0;top:.45rem;width:.22rem;
         if(e.isIntersecting){
           var i=[].indexOf.call(pages,e.target);
           dots.forEach(function(d,j){d.classList.toggle('on',j===i)});
+          if(i===pages.length-1 && !autoDone){ autoDone=true; setTimeout(function(){openFilm(true)},450); }
         }
       });
     },{root:deck,threshold:.55});
@@ -286,6 +307,52 @@ ul.rules li::before{content:"";position:absolute;left:0;top:.45rem;width:.22rem;
   deck.addEventListener('scroll',function(){
     if(hint&&deck.scrollTop>40){hint.style.display='none'}
   },{passive:true});
+  // the film: open it over the page and start it straight away, rather than
+  // dropping the reader onto YouTube and making them press play again
+  var VID='3rgyGigWWxA',
+      wrap=document.getElementById('film'),
+      openBtn=document.getElementById('playfilm'),
+      closeBtn=document.getElementById('filmclose'),
+      soundBtn=document.getElementById('filmsound'),
+      player=null, apiReady=false, autoDone=false;
+
+  var tag=document.createElement('script');
+  tag.src='https://www.youtube.com/iframe_api';
+  document.head.appendChild(tag);
+  window.onYouTubeIframeAPIReady=function(){ apiReady=true; };
+
+  function openFilm(auto){
+    wrap.classList.add('on');
+    // Browsers only allow sound to start on its own after a tap, so an
+    // auto-opened film starts muted with a one-tap control for sound.
+    if(player){ try{ if(auto) player.mute(); player.playVideo(); }catch(e){} }
+    else if(apiReady){
+      player=new YT.Player('filmbox',{
+        videoId:VID, host:'https://www.youtube-nocookie.com',
+        playerVars:{autoplay:1,mute:auto?1:0,playsinline:1,rel:0,modestbranding:1},
+        events:{onReady:function(ev){ if(auto) ev.target.mute(); ev.target.playVideo(); }}
+      });
+    } else {
+      document.getElementById('filmbox').innerHTML='<iframe src="https://www.youtube-nocookie.com/embed/'+VID+
+        '?autoplay=1&mute='+(auto?1:0)+'&playsinline=1&rel=0&modestbranding=1" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowfullscreen style="width:100%;height:100%;border:0"></iframe>';
+    }
+    if(soundBtn) soundBtn.classList.toggle('on', !!auto);
+  }
+  function closeFilm(){
+    wrap.classList.remove('on');
+    if(soundBtn) soundBtn.classList.remove('on');
+    if(player){ try{ player.pauseVideo(); }catch(e){} }
+    else { document.getElementById('filmbox').innerHTML=''; }
+  }
+  if(openBtn) openBtn.addEventListener('click',function(e){ e.preventDefault(); openFilm(false); });
+  if(closeBtn) closeBtn.addEventListener('click',closeFilm);
+  if(soundBtn) soundBtn.addEventListener('click',function(){
+    if(player){ try{ player.unMute(); player.setVolume(100); }catch(e){} }
+    soundBtn.classList.remove('on');
+  });
+  wrap.addEventListener('click',function(e){ if(e.target===wrap) closeFilm(); });
+  window.addEventListener('keydown',function(e){ if(e.key==='Escape') closeFilm(); });
+
   // arrow keys and page keys, for laptops
   window.addEventListener('keydown',function(e){
     var k=e.key,step=deck.clientHeight;
